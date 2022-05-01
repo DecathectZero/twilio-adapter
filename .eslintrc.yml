@@ -1,3 +1,4 @@
 extends: google
 parserOptions:
-  ecmaVersion: 6
+  ecmaVersion: 11
+maxLen: 180

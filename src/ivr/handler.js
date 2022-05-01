@@ -1,112 +1,80 @@
 const VoiceResponse = require('twilio').twiml.VoiceResponse;
+const axios = require('axios');
 
-exports.welcome = function welcome() {
-  const voiceResponse = new VoiceResponse();
+// // THIS IS ONLY NEEDED IF YOU WANT TO SEND TEXT (SMS) MESSAGES THROUGH TWILIO
+// const client = require('twilio')('XXX', 'XXX');
+// const sendText = (from, to, text) => {
+//   console.log("sending text", { from, to, text });
+//   client.messages.create({body: text, from, to }).then(message => console.log('text successfully sent', message.sid));
+// }
 
-  const gather = voiceResponse.gather({
-    action: '/ivr/menu',
-    numDigits: '1',
-    method: 'POST',
+const API_KEY = "VF.DM.XXXXXXX......"; // it should look like this: VF.DM.XXXXXXX.XXXXXX... keep this a secret!
+
+// send an interaction to the Voiceflow API, and log the response, returns true if there is a next step
+async function interact(called, caller, action) {
+  const twiml = new VoiceResponse();
+  // call the Voiceflow API with the user's name & request, get back a response
+
+  console.log("REQUEST ACTION", action)
+  const request = {
+    method: "POST",
+    url: `https://general-runtime.voiceflow.com/state/user/${encodeURI(caller)}/interact`,
+    headers: { Authorization: API_KEY },
+    data: { action, config: { stopTypes: ['call'] } },
+  }
+  const response = await axios(request);
+
+  // janky first pass
+  const endTurn = response.data.some((trace) => ['call', 'end'].includes(trace.type));
+
+  const agent = endTurn ? twiml : twiml.gather({
+    input: 'speech',
+    speechTimeout: 'auto',
+    action: '/ivr/interaction',
+    profanityFilter: false,
+    actionOnEmptyResult: true
   });
 
-  gather.say(
-    'Thanks for calling the E T Phone Home Service. ' +
-    'Please press 1 for directions. ' +
-    'Press 2 for a list of planets to call.',
-    {loop: 3}
-  );
-
-  return voiceResponse.toString();
-};
-
-exports.menu = function menu(digit) {
-  const optionActions = {
-    '1': giveExtractionPointInstructions,
-    '2': listPlanets,
-  };
-
-  return (optionActions[digit])
-    ? optionActions[digit]()
-    : redirectWelcome();
-};
-
-exports.planets = function planets(digit) {
-  const optionActions = {
-    '2': '+12024173378',
-    '3': '+12027336386',
-    '4': '+12027336637',
-  };
-
-  if (optionActions[digit]) {
-    const twiml = new VoiceResponse();
-    twiml.dial(optionActions[digit]);
-    return twiml.toString();
+  // loop through the response
+  for (const trace of response.data) {
+    switch (trace.type) {
+      // case "sms": {
+      //   try { 
+      //     sendText(called, caller, trace.payload)
+      //   } catch (error) { 
+      //     console.log(error) 
+      //   }
+      //   break;
+      // }
+      case "text":
+      case "speak": {
+        agent.say(trace.payload.message);
+        break;
+      }
+      case "call":
+        const { number } = JSON.parse(trace.payload);
+        twiml.dial(number);
+        break;
+      case "end": {
+        twiml.hangup();
+        break;
+      }
+      default: {}
+    }
   }
 
-  return redirectWelcome();
+  console.log(twiml.toString())
+  return twiml.toString();
+}
+
+exports.launch = async (called, caller) => {
+  return interact(called, caller, { type: "launch" });
 };
 
-/**
- * Returns Twiml
- * @return {String}
- */
-function giveExtractionPointInstructions() {
-  const twiml = new VoiceResponse();
-
-  twiml.say(
-    'To get to your extraction point, get on your bike and go down ' +
-    'the street. Then Left down an alley. Avoid the police cars. Turn left ' +
-    'into an unfinished housing development. Fly over the roadblock. Go ' +
-    'passed the moon. Soon after you will see your mother ship.',
-    {voice: 'alice', language: 'en-GB'}
-  );
-
-  twiml.say(
-    'Thank you for calling the ET Phone Home Service - the ' +
-    'adventurous alien\'s first choice in intergalactic travel'
-  );
-
-  twiml.hangup();
-
-  return twiml.toString();
-}
-
-/**
- * Returns a TwiML to interact with the client
- * @return {String}
- */
-function listPlanets() {
-  const twiml = new VoiceResponse();
-
-  const gather = twiml.gather({
-    action: '/ivr/planets',
-    numDigits: '1',
-    method: 'POST',
-  });
-
-  gather.say(
-    'To call the planet Broh doe As O G, press 2. To call the planet DuhGo ' +
-    'bah, press 3. To call an oober asteroid to your location, press 4. To ' +
-    'go back to the main menu, press the star key ',
-    {voice: 'alice', language: 'en-GB', loop: 3}
-  );
-
-  return twiml.toString();
-}
-
-/**
- * Returns an xml with the redirect
- * @return {String}
- */
-function redirectWelcome() {
-  const twiml = new VoiceResponse();
-
-  twiml.say('Returning to the main menu', {
-    voice: 'alice',
-    language: 'en-GB',
-  });
-
-  twiml.redirect('/ivr/welcome');
-
-  return twiml.toString();
-}
+exports.interaction = async (called, caller, query = '') => {
+  // twilio always ends everythings with a period
+  query = query.slice(0, -1);
+  query = query.replace('one', '1');
+  const action = query.trim() ? { type: "text", payload: query } : null;
+  return interact(called, caller, action);
+};
