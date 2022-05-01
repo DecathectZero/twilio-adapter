@@ -37,7 +37,7 @@
     "morgan": "~1.7.0",
     "nodemon": "^2.0.16",
     "serve-favicon": "~2.3.2",
-    "stylus": "0.54.5",
+    "stylus": "0.57.0",
     "twilio": "^3.0.0-rc.17"
   },
   "devDependencies": {
