@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "eslint": "8.14.0",
-    "eslint-config-google": "^0.7.1",
+    "eslint-config-google": "^0.14.0",
     "jest": "^19.0.2"
   }
 }
