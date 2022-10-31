@@ -38,7 +38,7 @@
     "nodemon": "^2.0.16",
     "serve-favicon": "~2.3.2",
     "stylus": "0.54.5",
-    "twilio": "^3.0.0-rc.17"
+    "twilio": "^3.83.1"
   },
   "devDependencies": {
     "eslint": "8.14.0",
